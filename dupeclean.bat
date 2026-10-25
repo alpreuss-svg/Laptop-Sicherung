@@ -15,6 +15,12 @@ set "PATH=%~dp0;%PATH%"
 cd /d "%USERPROFILE%"
 title DupeClean
 doskey dupeclean=%PYEXE% "%~dp0dupeclean.py" $*
+doskey scan=%PYEXE% "%~dp0dupeclean.py" scan $*
+doskey report=%PYEXE% "%~dp0dupeclean.py" report $*
+doskey apply=%PYEXE% "%~dp0dupeclean.py" apply $*
+doskey undo=%PYEXE% "%~dp0dupeclean.py" undo $*
+doskey purge=%PYEXE% "%~dp0dupeclean.py" purge $*
+doskey runs=%PYEXE% "%~dp0dupeclean.py" runs $*
 %PYEXE% "%~dp0dupeclean.py" --help
 echo.
 echo ----------------------------------------------------------------------
@@ -23,6 +29,8 @@ echo.
 echo      dupeclean scan E:\Sicherung
 echo      dupeclean report
 echo      dupeclean apply "E:\.dupeclean\berichte\...\loeschplan.csv"
+echo.
+echo  Das Wort dupeclean darf auch fehlen, z. B.:  scan E:\Sicherung
 echo.
 echo  Hilfe zu einem Befehl:   dupeclean scan --help
 echo  Fenster schliessen:      exit
