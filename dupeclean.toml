@@ -1,0 +1,81 @@
+# DupeClean – Konfiguration
+# Diese Datei wird automatisch verwendet, wenn sie neben dupeclean.bat liegt.
+# Eine andere Datei lässt sich mit --config PFAD angeben.
+# Fehlende Einträge werden durch die eingebauten Standardwerte ersetzt.
+
+[ausschliessen]
+# Datei- und Ordnernamen (Platzhalter * und ? erlaubt, Groß-/Kleinschreibung egal).
+# Ausgeschlossene Ordner werden nicht durchsucht. Ein Ordner, der einen
+# ausgeschlossenen Unterordner enthält, wird nie als Ganzes entfernt.
+namen = [
+  "$RECYCLE.BIN",
+  "System Volume Information",
+  "Thumbs.db",
+  "desktop.ini",
+  ".DS_Store",
+  "~$*",
+  ".dupeclean",
+  "_DupeClean_Quarantaene",
+]
+# Vollständige Pfade, die übersprungen werden sollen, z. B. 'E:\Sicherung\Unwichtig'
+pfade = []
+# 0-Byte-Dateien nie als Duplikat melden (beim Ordnervergleich zählen sie mit Namen mit).
+leere_dateien_ignorieren = true
+
+[behalten]
+# Reihenfolge der Regeln, nach denen aus einer Gruppe die Kopie gewählt wird, die bleibt.
+#   bevorzugt  – liegt in einem der bevorzugten Pfade (siehe unten / --prefer)
+#   abwerten   – enthält möglichst wenige der Abwertungs-Wörter
+#   aeltestes  – ältestes Änderungsdatum
+#   tiefe      – geringere Pfadtiefe
+#   laenge     – kürzerer Pfad
+reihenfolge = ["bevorzugt", "abwerten", "aeltestes", "tiefe", "laenge"]
+
+# Bevorzugte Pfade (der erste hat Vorrang). Zusätzlich per --prefer angebbar.
+bevorzugt = []
+
+# Wörter in Pfaden/Namen, die eine Kopie abwerten. Sie werden nur als ganzes
+# Wort erkannt ("Temp" trifft "Temp" und "temp-Dateien", aber nicht "Template").
+abwerten = ["Kopie", "- Kopie", "Copy", "(1)", "Backup", "Temp", "Downloads"]
+# Zusätzliche reguläre Ausdrücke (Python-Syntax), z. B. für "(2)", "(3)" …
+abwerten_regex = ['\(\d+\)', 'Kopie \(\d+\)']
+
+# Geschützte Strukturen: Ordner, deren Dateien zusammengehören. Darin wird nie
+# einzeln ausgedünnt; nur der ganze Ordner kann entfernt werden, wenn er
+# vollständig identisch an anderer Stelle existiert.
+# Bedingungen (alle angegebenen müssen zutreffen, Platzhalter erlaubt):
+#   ordnername – Name des Ordners selbst
+#   alle       – jedes Muster trifft mindestens einen Eintrag direkt im Ordner
+#   eines      – mindestens ein Muster trifft einen Eintrag direkt im Ordner
+[[geschuetzt]]
+name = "Git-Repository"
+eines = [".git"]
+
+[[geschuetzt]]
+name = "node_modules"
+ordnername = ["node_modules"]
+
+[[geschuetzt]]
+name = "Python-Umgebung"
+eines = ["pyvenv.cfg"]
+
+[[geschuetzt]]
+name = "Python-Umgebung"
+ordnername = [".venv"]
+
+[[geschuetzt]]
+name = "Programmordner"
+alle = ["*.exe", "*.dll"]
+
+[[geschuetzt]]
+name = "Lightroom-Katalog"
+eines = ["*.lrcat"]
+
+[[geschuetzt]]
+name = "Thunderbird-/Firefox-Profil"
+alle = ["prefs.js"]
+eines = ["places.sqlite", "key4.db", "ImapMail", "Mail", "panacea.dat"]
+
+[[geschuetzt]]
+name = "Outlook-Datendatei"
+eines = ["*.pst", "*.ost"]

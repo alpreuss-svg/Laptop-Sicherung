@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+.dupeclean/
+_DupeClean_Quarantaene/
