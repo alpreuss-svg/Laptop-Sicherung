@@ -8,7 +8,7 @@ import sqlite3
 from . import fsutil
 
 DB_NAME = "dupeclean.sqlite"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -90,8 +90,23 @@ def connect(data_dir: str) -> sqlite3.Connection:
     con.execute("PRAGMA synchronous=NORMAL")
     con.executescript(SCHEMA)
     con.execute("INSERT OR IGNORE INTO meta(key, value) VALUES('schema', ?)", (str(SCHEMA_VERSION),))
+    _migrate(con)
     con.commit()
     return con
+
+
+def _migrate(con: sqlite3.Connection) -> None:
+    """Version 1 -> 2: Laufwerks-/Datei-IDs als Text statt als Ganzzahl speichern."""
+    version = int(con.execute("SELECT value FROM meta WHERE key='schema'").fetchone()[0])
+    if version >= 2:
+        return
+    for table, key in (("files", "id"), ("hashcache", "path")):
+        rows = con.execute(f"SELECT {key}, dev, ino FROM {table} "
+                           "WHERE typeof(dev)='integer' OR typeof(ino)='integer'").fetchall()
+        con.executemany(f"UPDATE {table} SET dev=?, ino=? WHERE {key}=?",
+                        [(fsutil.enc_id(d) if isinstance(d, int) else d,
+                          fsutil.enc_id(i) if isinstance(i, int) else i, k) for k, d, i in rows])
+    con.execute("UPDATE meta SET value=? WHERE key='schema'", (str(SCHEMA_VERSION),))
 
 
 def get_meta(con: sqlite3.Connection, key: str, default=None):

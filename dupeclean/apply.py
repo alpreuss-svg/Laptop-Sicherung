@@ -287,7 +287,7 @@ class Verifier:
             if quick:
                 return orig.path
             snap = _snapshot_file(self.con, orig.path)
-            need_hash = self.thorough or snap is None or (snap[4] and snap[4] != ost.st_ino)
+            need_hash = self.thorough or snap is None or (snap[4] and snap[4] != fsutil.enc_id(ost.st_ino))
             if need_hash and orig.size:
                 if self._hash(orig.path, orig.size) != dup.content:
                     last = f"Original {orig.path} ist nicht mehr identisch"

@@ -353,6 +353,63 @@ class ScanResume(TreeTest):
         self.assertIn("(82 aus dem Cache)", self.last_out)
 
 
+class LargeFileIds(TreeTest):
+    """Windows liefert Laufwerkskennungen bis 2**64 und Datei-IDs bis 2**128 (z. B. USB-NTFS-Platten)."""
+
+    def _patched(self):
+        from unittest import mock
+        real_part, real_full = hashing.partial_hash, hashing.full_hash
+
+        def part(path, size):
+            p, f, dev, ino, nlink = real_part(path, size)
+            return p, f, dev + 2 ** 63 + 12345, ino + 2 ** 100, nlink
+
+        def full(path, size=None, **kw):
+            h, dev, ino, nlink, n = real_full(path, size, **kw)
+            return h, dev + 2 ** 63 + 12345, ino + 2 ** 100, nlink, n
+
+        return [mock.patch("dupeclean.hashing.partial_hash", part),
+                mock.patch("dupeclean.hashing.full_hash", full)]
+
+    def test_riesige_ids(self):
+        src = self.w("A/datei.bin", b"h" * 300_000)
+        os.makedirs(self.p("B"))
+        os.link(lp(src), lp(self.p("B/link.bin")))
+        self.w("C/kopie.bin", b"h" * 300_000)
+        self.w("D/x.txt", "klein")
+        self.w("E/y.txt", "klein")
+        patches = self._patched()
+        for p in patches:
+            p.start()
+        try:
+            self.assertEqual(self.scan(), 0, self.last_out if hasattr(self, "last_out") else "")
+            removed = self.removed_paths(self.report())
+        finally:
+            for p in patches:
+                p.stop()
+        # Hardlinks bleiben, die echte Kopie wird entfernt; dazu eines der beiden kleinen Duplikate
+        self.assertIn(self.p("C/kopie.bin"), removed)
+        self.assertNotIn(self.p("A/datei.bin"), removed)
+        self.assertNotIn(self.p("B/link.bin"), removed)
+        self.assertEqual(len(removed), 2)
+
+    def test_migration_alter_datenbank(self):
+        import json as _json
+        from dupeclean import db
+        con = db.connect(self.data)
+        con.execute("UPDATE meta SET value='1' WHERE key='schema'")
+        con.execute("INSERT INTO hashcache(path, size, mtime_ns, algo, partial, full, dev, ino, nlink) "
+                    "VALUES('x', 1, 1, 'a', 'p', 'f', 123, 456, 1)")
+        con.commit()
+        con.close()
+        con = db.connect(self.data)
+        row = con.execute("SELECT dev, ino FROM hashcache WHERE path='x'").fetchone()
+        ver = _json.loads(con.execute("SELECT value FROM meta WHERE key='schema'").fetchone()[0])
+        con.close()
+        self.assertEqual(row, ("x7b", "x1c8"))
+        self.assertEqual(ver, 2)
+
+
 class Hashing(unittest.TestCase):
     def test_teil_und_vollhash_klein_identisch(self):
         import tempfile

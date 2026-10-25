@@ -271,12 +271,12 @@ class Scanner:
     def _job_partial(self, job):
         fid, path, size, mtime = job
         part, full, dev, ino, nlink = hashing.partial_hash(path, size)
-        return part, full, dev, ino, nlink, size
+        return part, full, fsutil.enc_id(dev), fsutil.enc_id(ino), nlink, size
 
     def _job_full(self, job):
         fid, path, size, mtime = job
         full, dev, ino, nlink, _ = hashing.full_hash(path, size)
-        return None, full, dev, ino, nlink, size
+        return None, full, fsutil.enc_id(dev), fsutil.enc_id(ino), nlink, size
 
     def _run_jobs(self, con, jobs, fn, prog) -> None:
         last_commit = time.monotonic()

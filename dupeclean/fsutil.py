@@ -54,6 +54,15 @@ def key(path: str) -> str:
     return k.casefold() if IS_WINDOWS else k
 
 
+def enc_id(n: int | None) -> str | None:
+    """Datei- bzw. Laufwerkskennung als Text.
+
+    Windows liefert Laufwerkskennungen bis 2**64 und (ab Python 3.12) Datei-IDs bis 2**128 –
+    beides passt nicht in eine SQLite-Ganzzahl. 0 bzw. None bedeutet "unbekannt".
+    """
+    return f"x{n:x}" if n else None
+
+
 def is_within(path: str, parent: str) -> bool:
     """True, wenn ``path`` gleich ``parent`` ist oder darin liegt."""
     p, q = key(path), key(parent)
