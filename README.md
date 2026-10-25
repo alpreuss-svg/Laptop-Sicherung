@@ -16,12 +16,19 @@ Ordner gesichert sind, z. B. `E:\Sicherung\Laptop_Wohnzimmer\`.
 - Keine weiteren Pakete nötig. Optional schneller: `pip install xxhash` (dann wird xxh3-128 statt
   BLAKE2b verwendet; der Cache wird dabei einmalig neu aufgebaut).
 
-Programm starten mit `dupeclean.bat` (im Projektordner) – am bequemsten den Projektordner zur
-PATH-Variablen hinzufügen oder den vollen Pfad angeben:
+### Programm starten
+
+**Am einfachsten:** im Explorer auf `dupeclean.bat` doppelklicken. Es öffnet sich ein Fenster, das
+offen bleibt; dort tippen Sie die Befehle ein, z. B. `dupeclean scan E:\Sicherung`, und schließen
+es am Ende mit `exit`.
+
+Alternativ aus einer eigenen PowerShell oder Eingabeaufforderung mit vollem Pfad:
 
 ```
 "C:\Users\alpre\.claude\Laptop sicherung\dupeclean.bat" scan E:\Sicherung
 ```
+
+In den Beispielen unten steht kurz `dupeclean …` – das funktioniert so im Doppelklick-Fenster.
 
 ## Ablauf in fünf Schritten
 
