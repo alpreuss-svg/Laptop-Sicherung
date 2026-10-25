@@ -48,6 +48,7 @@ class Scanner:
         self._abort_after = int(os.environ.get("DUPECLEAN_TEST_ABORT_SCAN_AFTER", "0") or 0)
         self._delay = float(os.environ.get("DUPECLEAN_TEST_HASH_DELAY", "0") or 0)
         self._hashed = 0
+        self.stats: dict = {}
 
     # ------------------------------------------------------------------ Ablauf
     def run(self) -> int:
@@ -58,6 +59,8 @@ class Scanner:
         hashing.STOP.clear()
         con = db.connect(self.data_dir)
         workspace.remember(self.data_dir)
+        # Quarantäne-Ordner früherer Läufe nie mit durchsuchen
+        self.exclude_paths += [fsutil.key(q) for q in (db.get_meta(con, "quarantaene", []) or [])]
         try:
             state = db.get_meta(con, "scan")
             same = bool(state) and [fsutil.key(r) for r in state.get("roots", [])] == \
@@ -126,6 +129,9 @@ class Scanner:
 
         stack = [(r, None) for r in reversed(self.roots)]
         while stack:
+            if hashing.STOP.is_set():
+                flush()
+                raise Aborted()
             d, parent = stack.pop()
             ndirs += 1
             incomplete = 0
@@ -312,6 +318,8 @@ class Scanner:
                     time.sleep(self._delay)
                 if self._abort_after and self._hashed >= self._abort_after:
                     raise KeyboardInterrupt
+                if hashing.STOP.is_set():
+                    raise Aborted()
                 if time.monotonic() - last_commit > COMMIT_INTERVAL or len(file_upd) >= BATCH:
                     store()
                     last_commit = time.monotonic()
@@ -365,6 +373,8 @@ class Scanner:
                  FROM files WHERE full IS NOT NULL AND error=0 GROUP BY size, full
                  HAVING COUNT(DISTINCT CASE WHEN ino IS NULL OR ino=0 THEN path
                               ELSE dev||':'||ino END)>1)""").fetchone()
+        self.stats = {"files": nfiles, "bytes": total, "groups": groups[0], "waste": groups[1],
+                      "errors": nerr, "links": nlinks}
         _out("")
         _out(f"Scan abgeschlossen: {fmt_int(nfiles)} Dateien, {fmt_size(total)}.")
         _out(f"Gruppen identischer Dateien: {fmt_int(groups[0])}, "

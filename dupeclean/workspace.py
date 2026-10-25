@@ -22,6 +22,11 @@ def _home() -> str:
     return os.path.join(local, "DupeClean")
 
 
+def home_dir() -> str:
+    """Ordner für Benutzereinstellungen (Standard: %LOCALAPPDATA%\\DupeClean)."""
+    return _home()
+
+
 def _last_file() -> str:
     return os.path.join(_home(), "zuletzt.json")
 

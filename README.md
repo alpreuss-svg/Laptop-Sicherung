@@ -16,19 +16,43 @@ Ordner gesichert sind, z. B. `E:\Sicherung\Laptop_Wohnzimmer\`.
 - Keine weiteren Pakete nötig. Optional schneller: `pip install xxhash` (dann wird xxh3-128 statt
   BLAKE2b verwendet; der Cache wird dabei einmalig neu aufgebaut).
 
-### Programm starten
+### Programm starten – mit Fensteroberfläche
 
-**Am einfachsten:** im Explorer auf `dupeclean.bat` doppelklicken. Es öffnet sich ein Fenster, das
-offen bleibt; dort tippen Sie die Befehle ein, z. B. `dupeclean scan E:\Sicherung`, und schließen
-es am Ende mit `exit`.
+Im Explorer auf **`dupeclean.bat`** doppelklicken (oder auf `dupeclean_gui.pyw`). Es öffnet sich
+das DupeClean-Fenster:
 
-Alternativ aus einer eigenen PowerShell oder Eingabeaufforderung mit vollem Pfad:
+1. **Welche Ordner sollen geprüft werden?** – mit „Ordner hinzufügen …“ einen oder mehrere Ordner
+   wählen (z. B. `E:\Sicherung` oder einzelne Laptop-Ordner). Optional einen Ordner angeben, dessen
+   Kopien **bevorzugt behalten** werden (z. B. der neueste Laptop).
+2. **Einstellungen** – SSD ja/nein, leer gewordene Ordner entfernen, besonders gründlich prüfen.
+3. **Schritte** – nacheinander klicken:
+   - **① Duplikate suchen** (liest nur): Danach erscheint eine Kurzinfo (geprüft, gefunden,
+     einsparbar), und der HTML-Bericht öffnet sich. Über „Löschplan öffnen (Excel)“ lassen sich
+     einzelne Einträge auf „behalten“ umstellen.
+   - **② Probelauf** (ändert nichts): Kurzinfo, was verschoben bzw. übersprungen würde.
+   - **③ In Quarantäne verschieben**: nach Rückfrage; danach Kurzinfo mit Anzahl und Größe.
+
+   Ein Fortschrittsbalken zeigt Dateien, MB/s und Restzeit; **Stopp** hält sauber an (die Suche
+   setzt beim nächsten Klick an derselben Stelle fort).
+
+„Rückgängig machen“ holt den letzten Lauf zurück. Unter „Läufe verwalten …“ sehen Sie alle Läufe
+und können dort auch rückgängig machen oder die Quarantäne **endgültig löschen** (mit Bestätigung
+durch Eintippen von „ja“). „Protokoll“ zeigt alle Einzelheiten. Ordnerauswahl und Einstellungen
+merkt sich das Fenster für das nächste Mal.
+
+Der Ablauf und alle Sicherheitsprüfungen sind dieselben wie auf der Kommandozeile (siehe unten).
+
+### Programm starten – Kommandozeile
+
+`dupeclean.bat konsole` öffnet ein Eingabefenster, in dem Sie die Befehle direkt eintippen, z. B.
+`dupeclean scan E:\Sicherung` (das Wort `dupeclean` darf auch fehlen). Oder aus einer eigenen
+PowerShell mit vollem Pfad:
 
 ```
 "C:\Users\alpre\.claude\Laptop sicherung\dupeclean.bat" scan E:\Sicherung
 ```
 
-In den Beispielen unten steht kurz `dupeclean …` – das funktioniert so im Doppelklick-Fenster.
+In den Beispielen unten steht kurz `dupeclean …`.
 
 ## Ablauf in fünf Schritten
 
@@ -267,7 +291,8 @@ cd "C:\Users\alpre\.claude\Laptop sicherung\tests"
 python -m unittest -v
 ```
 
-Die Tests erzeugen ihre Testbäume im Temp-Ordner (nie auf echten Daten) und decken ab: gleicher
+Die Tests erzeugen ihre Testbäume im Temp-Ordner (nie auf echten Daten) und decken ab – inklusive
+eines kompletten Durchlaufs der Fensteroberfläche (Suchen, Probelauf, Verschieben, Stopp, Rückgängig): gleicher
 Name/anderer Inhalt, gleicher Inhalt/anderer Name, gleiche Größe/anderer Inhalt, Unterschied nur
 in der Dateimitte, identische und verschachtelte identische Ordner, Teilmengen-Ordner, Hardlink,
 Junction, Symlink (nur mit Windows-Entwicklermodus, sonst übersprungen), 0-Byte-Dateien,

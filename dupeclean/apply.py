@@ -20,6 +20,7 @@ import signal
 import shutil
 import stat as _stat
 import sys
+import threading
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -401,6 +402,9 @@ class _StopFlag:
 
     def __enter__(self):
         hashing.STOP.clear()
+        self._old = None
+        if threading.current_thread() is not threading.main_thread():
+            return self  # z. B. in der Fensteroberfläche: dort gibt es einen Stopp-Knopf
         self._old = signal.getsignal(signal.SIGINT)
 
         def handler(signum, frame):
@@ -412,7 +416,8 @@ class _StopFlag:
         return self
 
     def __exit__(self, *exc):
-        signal.signal(signal.SIGINT, self._old)
+        if self._old is not None:
+            signal.signal(signal.SIGINT, self._old)
         return False
 
     @property
@@ -422,7 +427,10 @@ class _StopFlag:
 
 # ====================================================================== apply
 def apply(csv_path: str, data_dir: str, cfg: Config, execute: bool = False, thorough: bool = False,
-          remove_empty: bool = False, quarantine_root: str | None = None, confirm=input) -> int:
+          remove_empty: bool = False, quarantine_root: str | None = None, confirm=input,
+          result: dict | None = None) -> int:
+    """Wendet den Löschplan an. ``result`` (falls angegeben) wird mit Kennzahlen gefüllt."""
+    result = result if result is not None else {}
     con = db.connect(data_dir)
     try:
         rows, warnings = read_plan_csv(csv_path)
@@ -433,6 +441,8 @@ def apply(csv_path: str, data_dir: str, cfg: Config, execute: bool = False, thor
         n_dirs = sum(1 for it in todo if it.kind == "ordner")
         total = sum(it.size for it in todo)
         changed = sum(1 for it in items.values() if it.action != it.planned)
+        result.update({"plan_id": plan_id, "planned": len(todo), "planned_bytes": total,
+                       "changed": changed, "warnings": warnings})
         _out(f"Löschplan {plan_id}: {fmt_int(len(todo))} Einträge zum Entfernen "
              f"({fmt_int(n_dirs)} Ordner, {fmt_int(len(todo) - n_dirs)} Dateien), zusammen {fmt_size(total)}.")
         if changed:
@@ -446,7 +456,7 @@ def apply(csv_path: str, data_dir: str, cfg: Config, execute: bool = False, thor
             return 0
         quarantine_root = fsutil.norm(quarantine_root) if quarantine_root else workspace.default_quarantine(data_dir)
         if not execute:
-            return _dry_run(con, cfg, plan_id, todo, groups, removed_dirs, data_dir, quarantine_root)
+            return _dry_run(con, cfg, plan_id, todo, groups, removed_dirs, data_dir, quarantine_root, result)
 
         _out("")
         _out(f"Die Einträge werden in die Quarantäne verschoben: {quarantine_root}")
@@ -457,7 +467,7 @@ def apply(csv_path: str, data_dir: str, cfg: Config, execute: bool = False, thor
             _out("Abgebrochen, nichts wurde verändert.")
             return 1
         return _execute(con, cfg, plan_id, csv_path, todo, groups, removed_dirs, data_dir,
-                        quarantine_root, thorough, remove_empty)
+                        quarantine_root, thorough, remove_empty, result)
     finally:
         con.close()
 
@@ -468,7 +478,7 @@ def _originals(it: Item, groups: dict, removed_dirs: list[str]) -> list[Item]:
     return sorted(surv, key=lambda o: (o.planned != "behalten", o.path))
 
 
-def _dry_run(con, cfg, plan_id, todo, groups, removed_dirs, data_dir, quarantine_root) -> int:
+def _dry_run(con, cfg, plan_id, todo, groups, removed_dirs, data_dir, quarantine_root, result) -> int:
     v = Verifier(con, cfg, thorough=False)
     reasons = Counter()
     lines = []
@@ -490,6 +500,8 @@ def _dry_run(con, cfg, plan_id, todo, groups, removed_dirs, data_dir, quarantine
     with open(txt, "w", encoding="utf-8") as f:
         f.write(f"DupeClean Probelauf – Plan {plan_id} – {_now()}\nQuarantäne: {quarantine_root}\n\n")
         f.write("\n".join(lines) + "\n")
+    result.update({"would_move": ok, "would_move_bytes": ok_bytes, "would_skip": sum(reasons.values()),
+                   "skip_reasons": reasons.most_common(10), "list_file": txt})
     _out("")
     _out("PROBELAUF – es wurde nichts verändert.")
     _out(f"  Würde verschieben: {fmt_int(ok)} Einträge, {fmt_size(ok_bytes)}")
@@ -505,7 +517,7 @@ def _dry_run(con, cfg, plan_id, todo, groups, removed_dirs, data_dir, quarantine
 
 
 def _execute(con, cfg, plan_id, csv_path, todo, groups, removed_dirs, data_dir, quarantine_root,
-             thorough, remove_empty) -> int:
+             thorough, remove_empty, result) -> int:
     run_id = time.strftime("%Y-%m-%d_%H%M%S")
     run_dir = os.path.join(quarantine_root, run_id)
     while fsutil.exists(run_dir):
@@ -612,6 +624,10 @@ def _execute(con, cfg, plan_id, csv_path, todo, groups, removed_dirs, data_dir, 
     log(f"Lauf beendet: {status}, {moved} verschoben ({moved_bytes} Bytes), "
         f"{sum(skipped.values())} übersprungen, {errors} Fehler")
     log.close()
+    result.update({"run_id": run_id, "run_dir": run_dir, "status": status, "moved": moved,
+                   "moved_bytes": moved_bytes, "skipped": sum(skipped.values()),
+                   "skip_reasons": skipped.most_common(10), "errors": errors,
+                   "removed_empty": removed_empty, "log": os.path.join(meta, "protokoll.log")})
     _out("")
     _out(f"Lauf {run_id}: {'ABGEBROCHEN' if status == 'abgebrochen' else 'fertig'}.")
     _out(f"  Verschoben: {fmt_int(moved)} Einträge, {fmt_size(moved_bytes)}")
@@ -675,7 +691,7 @@ def _moves(run_dir: str) -> tuple[list[dict], list[str]]:
 
 
 # ====================================================================== undo
-def undo(run: str, data_dir: str | None) -> int:
+def undo(run: str, data_dir: str | None, result: dict | None = None) -> int:
     run_dir = find_run(run, data_dir)
     info = _run_info(run_dir)
     meta = os.path.join(run_dir, META_DIR)
@@ -729,6 +745,9 @@ def undo(run: str, data_dir: str | None) -> int:
     log(f"UNDO beendet: {restored} wiederhergestellt, {already} waren nicht verschoben, "
         f"{conflicts} Konflikte, {missing} fehlen")
     log.close()
+    if result is not None:
+        result.update({"restored": restored, "already": already, "conflicts": conflicts,
+                       "missing": missing, "status": status})
     _out(f"  Wiederhergestellt: {fmt_int(restored)}")
     if already:
         _out(f"  Waren nicht verschoben: {fmt_int(already)}")
@@ -824,6 +843,22 @@ def purge(run: str, data_dir: str | None, confirm=input) -> int:
 
 
 # ====================================================================== runs
+def run_table(data_dir: str) -> list[dict]:
+    """Alle bekannten Läufe mit ihren Angaben (neueste zuerst)."""
+    out = []
+    for run_id, d in workspace.load_runs(data_dir).items():
+        info = _run_info(d)
+        if not info:
+            try:
+                with open(os.path.join(d, "lauf.json"), encoding="utf-8") as f:
+                    info = json.load(f)
+            except (OSError, ValueError):
+                info = {}
+        out.append(dict(info, lauf=run_id, ordner=d))
+    out.sort(key=lambda r: r["lauf"], reverse=True)
+    return out
+
+
 def list_runs(data_dir: str) -> int:
     runs = workspace.load_runs(data_dir)
     if not runs:

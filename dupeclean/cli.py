@@ -113,11 +113,7 @@ def main(argv: list[str] | None = None, confirm=None) -> int:
         cfg = config.load(args.config)
         if args.cmd == "scan":
             data_dir = workspace.data_dir_for_roots(args.ordner, args.daten)
-            sc = Scanner(args.ordner, data_dir, cfg, threads=args.threads, fresh=args.neu)
-            con = db.connect(data_dir)
-            sc.exclude_paths += [fsutil.key(q) for q in (db.get_meta(con, "quarantaene", []) or [])]
-            con.close()
-            return sc.run()
+            return Scanner(args.ordner, data_dir, cfg, threads=args.threads, fresh=args.neu).run()
         if args.cmd == "report":
             data_dir = workspace.resolve_data_dir(args.daten)
             con = db.connect(data_dir)

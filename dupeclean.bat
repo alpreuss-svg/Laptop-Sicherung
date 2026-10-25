@@ -1,14 +1,21 @@
 @echo off
 rem DupeClean - Startdatei. Aufruf z. B.:  dupeclean scan E:\Sicherung
-rem Per Doppelklick gestartet, oeffnet sich ein Fenster, das offen bleibt.
+rem Per Doppelklick: Fensteroberflaeche.  'dupeclean konsole': Eingabefenster fuer Befehle.
 setlocal
 set "PYTHONIOENCODING=utf-8"
 set "PYTHONUTF8=1"
 set "PYEXE=python"
 where py >nul 2>nul && set "PYEXE=py -3"
-if "%~1"=="" goto interaktiv
+if "%~1"=="" goto oberflaeche
+if /i "%~1"=="konsole" goto interaktiv
 %PYEXE% "%~dp0dupeclean.py" %*
 exit /b %errorlevel%
+
+:oberflaeche
+set "PYWEXE=pythonw"
+where pyw >nul 2>nul && set "PYWEXE=pyw -3"
+start "" %PYWEXE% "%~dp0dupeclean_gui.pyw"
+exit /b 0
 
 :interaktiv
 set "PATH=%~dp0;%PATH%"

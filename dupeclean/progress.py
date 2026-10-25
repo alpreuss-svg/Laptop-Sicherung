@@ -7,6 +7,10 @@ import time
 
 from .fsutil import console_safe, fmt_duration, fmt_int, fmt_size
 
+# Optionaler Empfänger für Fortschrittsmeldungen (z. B. die Fensteroberfläche).
+# Wird mit einem dict aufgerufen: label, items, total_items, bytes, total_bytes, rate, eta, text, done
+LISTENER = None
+
 
 class Progress:
     def __init__(self, label: str, total_items: int = 0, total_bytes: int = 0, enabled: bool = True):
@@ -18,8 +22,8 @@ class Progress:
         self.start = time.monotonic()
         self._last = 0.0
         self.enabled = enabled and os.environ.get("DUPECLEAN_QUIET") != "1"
-        self._tty = sys.stderr.isatty()
-        self._interval = 0.25 if self._tty else 10.0
+        self._tty = bool(sys.stderr) and sys.stderr.isatty()
+        self._interval = 0.25 if (self._tty or LISTENER) else 10.0
         self._width = 0
 
     def add(self, items: int = 0, nbytes: int = 0, extra: str = "") -> None:
@@ -57,8 +61,26 @@ class Progress:
             line += "  " + extra
         return line
 
+    def _notify(self, extra: str = "", done: bool = False) -> None:
+        if LISTENER is None:
+            return
+        rate = self._rate()
+        eta = None
+        if not done:
+            if self.total_bytes and rate > 0:
+                eta = (self.total_bytes - self.bytes) / rate
+            elif self.total_items and self.items:
+                eta = (time.monotonic() - self.start) / self.items * (self.total_items - self.items)
+        try:
+            LISTENER({"label": self.label, "items": self.items, "total_items": self.total_items,
+                      "bytes": self.bytes, "total_bytes": self.total_bytes, "rate": rate, "eta": eta,
+                      "text": self._line(extra), "done": done})
+        except Exception:
+            pass
+
     def _show(self, extra: str = "") -> None:
-        if not self.enabled:
+        self._notify(extra)
+        if not self.enabled or not sys.stderr:
             return
         line = console_safe(self._line(extra))
         if self._tty:
@@ -76,7 +98,8 @@ class Progress:
         sys.stderr.flush()
 
     def done(self, extra: str = "") -> None:
-        if not self.enabled:
+        self._notify(extra, done=True)
+        if not self.enabled or not sys.stderr:
             return
         dt = time.monotonic() - self.start
         line = self._line(extra).split("  Rest ~")[0] + f"  fertig in {fmt_duration(dt)}"
